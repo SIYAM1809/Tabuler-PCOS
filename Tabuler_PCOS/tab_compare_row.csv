@@ -1,0 +1,2 @@
+AUC-ROC (OOF),AP (PR-AUC),Brier score,F1 @ 85/85,Sensitivity @ 85/85,Specificity @ 85/85,Sensitivity @ Spec≥0.80,J* (reported),Threshold @ J*,Threshold @ Spec≥0.80,ms/row (bs=1),Throughput (bs=8),Throughput (bs=32),Preprocessing (CPU),"End-to-end (approx, bs=1)",Class balance (labels)
+0.9727 (95% CI: 0.961–0.983),0.9845 (95% CI: 0.977–0.991),0.0595,0.925,0.896,0.915,0.967,0.8109,0.8182,0.5000,45.88 ms,108.84 img/s,509.09 img/s,6.29 ms,52.17 ms,"0=177 (32.72%), 1=364 (67.28%)  [1 = healthy]"
