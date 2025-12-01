@@ -10,7 +10,7 @@ st.set_page_config(page_title="PCOS Detection System", page_icon="🩺", layout=
 def load_model():
     try:
         # Load the pipeline you saved from Colab
-        return joblib.load('pcos_pipeline.pkl')
+        return joblib.load('pcos_pipelineV2.pkl')
     except FileNotFoundError:
         st.error("⚠️ Model file 'pcos_pipeline.pkl' not found. Please place it in the same folder as this script.")
         return None
