@@ -3,22 +3,30 @@ import pandas as pd
 import joblib
 
 # --- PAGE CONFIGURATION ---
-st.set_page_config(page_title="PCOS Detection System", page_icon="🩺", layout="wide")
+st.set_page_config(
+    page_title="PCOS Detection System", 
+    page_icon="🩺", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # --- 1. LOAD THE TRAINED PIPELINE ---
 @st.cache_resource
 def load_model():
     try:
-        # Load the pipeline you saved from Colab
+        # Load the pipeline
         return joblib.load('pcos_pipeline_v3.pkl')
     except FileNotFoundError:
         st.error("⚠️ Model file 'pcos_pipeline_v3.pkl' not found. Please place it in the same folder as this script.")
         return None
+    except Exception as e:
+        st.error(f"⚠️ Error loading model: {e}")
+        return None
 
 model = load_model()
 
-# --- 2. DEFINE COLUMNS ---
-# Exact columns from your training data
+# --- 2. DEFINE COLUMNS (EXACT MATCH TO MODEL) ---
+# These names have been verified against your .pkl file
 ALL_COLUMNS = [
     'Age (yrs)', 'Weight (Kg)', 'Height(Cm)', 'BMI', 'Blood Group', 'Pulse rate(bpm)', 
     'RR (breaths/min)', 'Hb(g/dl)', 'Cycle(R/I)', 'Cycle length(days)', 'Marraige Status (Yrs)', 
@@ -34,23 +42,21 @@ ALL_COLUMNS = [
 # --- 3. UI HELPER FUNCTIONS ---
 
 def get_user_input():
-    st.write("### 📋 Patient Details")
+    st.markdown("### 📋 Enter Patient Vitals & History")
     
-    # We use a form to collect all data before predicting
     with st.form("pcos_form"):
-        
-        # Split form into 3 columns for better layout
+        # Split form into 3 columns for a clean layout
         c1, c2, c3 = st.columns(3)
         cols_iter = [c1, c2, c3]
         
         user_data = {}
         
         for i, col_name in enumerate(ALL_COLUMNS):
-            col_container = cols_iter[i % 3] # Rotate through columns
+            col_container = cols_iter[i % 3] # Rotate columns
             
-            # --- CUSTOM LOGIC FOR SPECIFIC COLUMNS ---
+            # --- LOGIC FOR SPECIFIC COLUMNS ---
             
-            # 1. Handle Binary Yes/No Columns
+            # 1. Binary Yes/No Columns
             if "(Y/N)" in col_name:
                 val = col_container.radio(
                     label=col_name,
@@ -58,10 +64,9 @@ def get_user_input():
                     horizontal=True,
                     key=col_name
                 )
-                # Convert to 1 (Yes) or 0 (No)
                 user_data[col_name] = 1 if val == "Yes" else 0
                 
-            # 2. Handle Cycle (Regular/Irregular) - Standard dataset uses 2 and 4
+            # 2. Cycle (Regular/Irregular)
             elif "Cycle(R/I)" in col_name:
                 val = col_container.radio(
                     label=col_name,
@@ -69,13 +74,19 @@ def get_user_input():
                     horizontal=True,
                     key=col_name
                 )
-                # Map to standard dataset values: Regular=2, Irregular=4
+                # Standard dataset mapping: Regular=2, Irregular=4
                 user_data[col_name] = 2 if val == "Regular" else 4
                 
-            # 3. Handle the 'Dirty' Categorical Column (II beta-HCG)
-            elif "II    beta-HCG" in col_name:
-                # This column often has typos in the original dataset, treating it as text
-                user_data[col_name] = col_container.text_input(col_name, value="1.99")
+            # 3. Handling the Spacing Issues for Beta-HCG
+            # Note: We use 'in' to catch it regardless of exact whitespace, 
+            # but the key in user_data matches ALL_COLUMNS exactly.
+            elif "beta-HCG" in col_name:
+                user_data[col_name] = col_container.number_input(
+                    label=col_name, 
+                    value=1.99, 
+                    step=0.01,
+                    format="%.2f"
+                )
             
             # 4. Standard Numeric Inputs
             else:
@@ -85,15 +96,30 @@ def get_user_input():
                     step=0.1
                 )
         
-        # Submit Button
-        submit = st.form_submit_button("🔍 Analyze Risk")
+        st.markdown("---")
+        submit = st.form_submit_button("🔍 Analyze Risk Factor", type="primary")
         
     return user_data, submit
 
 # --- 4. MAIN APP LOGIC ---
 
-st.title("🧬 PCOS Diagnostic Tool")
-st.markdown("Enter patient metrics below to predict Polycystic Ovary Syndrome risk.")
+# Sidebar Info
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3004/3004458.png", width=100)
+    st.title("PCOS Detector")
+    st.info(
+        """
+        This AI tool assists in the early detection of Polycystic Ovary Syndrome (PCOS) 
+        using clinical parameters.
+        """
+    )
+    st.write("---")
+    if model:
+        st.success("✅ Model Loaded Successfully")
+    else:
+        st.error("❌ Model Missing")
+
+st.title("🧬 AI-Powered PCOS Diagnostic Tool")
 
 if model:
     # Get Input
@@ -103,33 +129,63 @@ if model:
         # Convert dictionary to DataFrame
         input_df = pd.DataFrame([input_dict])
         
-        # Ensure column order matches training exactly
+        # DOUBLE CHECK: Ensure columns are in the exact order the model expects
         input_df = input_df[ALL_COLUMNS]
 
         st.divider()
-        st.subheader("Results")
+        st.subheader("Diagnostic Results")
+        
+        col_res1, col_res2 = st.columns([1, 2])
         
         try:
-            with st.spinner("Analyzing parameters..."):
+            with st.spinner("Processing clinical parameters..."):
                 # Prediction
                 prediction = model.predict(input_df)[0]
                 
-                # Probability (if supported by your model)
+                # Probability (try/except in case model doesn't support probability)
                 try:
-                    probability = model.predict_proba(input_df)[0][1]
+                    probs = model.predict_proba(input_df)[0]
+                    # Assuming class 1 is PCOS
+                    probability = probs[1]
                     confidence_score = f"{probability*100:.1f}%"
                 except:
+                    probability = None
                     confidence_score = "N/A"
 
             # Display Output
-            if prediction == 1: # Assuming 1 = PCOS/High Risk (Check your specific mapping!)
-                st.error(f"🚨 **High Risk Detected**")
-                st.write(f"The model suggests a high probability ({confidence_score}) of PCOS.")
-                st.warning("Recommendation: Please consult a gynecologist for clinical correlation.")
-            else:
-                st.success(f"✅ **Low Risk Detected**")
-                st.write(f"The model suggests the patient is likely Healthy ({confidence_score}).")
+            with col_res1:
+                if prediction == 1: 
+                    st.error("🚨 **RESULT: POSITIVE**")
+                    st.metric(label="Risk Probability", value=confidence_score)
+                else:
+                    st.success("✅ **RESULT: NEGATIVE**")
+                    st.metric(label="Risk Probability", value=confidence_score)
+
+            with col_res2:
+                if prediction == 1:
+                    st.warning(
+                        """
+                        **The model predicts a high likelihood of PCOS.**
+                        
+                        **Recommended Next Steps:**
+                        * Consult a Gynecologist for a pelvic ultrasound.
+                        * Review hormonal profile (FSH, LH, Testosterone).
+                        * Monitor lifestyle factors (Diet & Exercise).
+                        """
+                    )
+                else:
+                    st.success(
+                        """
+                        **The model predicts a low likelihood of PCOS.**
+                        
+                        **Note:** While the risk is low, please maintain a healthy lifestyle. 
+                        If symptoms persist, consult a doctor.
+                        """
+                    )
                 
         except Exception as e:
             st.error(f"An error occurred during prediction: {e}")
-            st.info("Tip: Check 'II beta-HCG' input. Ensure it matches the format in your training data.")
+            st.write("Debug info:", e)
+
+else:
+    st.warning("Please upload the 'pcos_pipeline_v3.pkl' file to the root directory to continue.")
