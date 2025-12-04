@@ -12,7 +12,7 @@ def load_model():
         # Load the pipeline you saved from Colab
         return joblib.load('pcos_pipelineV2.pkl')
     except FileNotFoundError:
-        st.error("⚠️ Model file 'pcos_pipeline.pkl' not found. Please place it in the same folder as this script.")
+        st.error("⚠️ Model file 'pcos_pipelineV2.pkl' not found. Please place it in the same folder as this script.")
         return None
 
 model = load_model()
